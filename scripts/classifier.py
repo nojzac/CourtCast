@@ -26,7 +26,7 @@ def auc_shuffle(y, pred_y, ntimes):
 
 def main():
 
-    infile = '/Users/nasrallah/Desktop/Insight/courtcast/db/feature_table_2.txt'
+    infile = 'data/c050_sentiment/feature_table_2.txt'
 
     ## Kennedy's words carry low weight among the justices, indicating that perhaps his speech is the least predictive of the outcome. Doesn't reveal much. That is IF the order is preserved...
     feature_names = ['amicus', 'argYear', 'argMonth', 'cutoffs_ALL', 'cutoffs_BREYER', 'cutoffs_GINSBURG', 'cutoffs_KENNEDY', 'cutoffs_ROBERTS', 'cutoffs_SCALIA', 'words_BREYER', 'words_GINSBURG', 'words_KENNEDY', 'words_ROBERTS', 'words_SCALIA', 'sentiment_BREYER', 'sentiment_GINSBURG', 'sentiment_KENNEDY', 'sentiment_ROBERTS', 'sentiment_SCALIA']
@@ -230,8 +230,8 @@ def main():
     dXWU.fillna('?', inplace=True)
  
     ## Save the case info, features, SVM predictions and probabilities to file      
-    outfile = '/Users/nasrallah/Desktop/Insight/courtcast/db/database_table.txt'
-    dXWU.to_csv(outfile, sep='\t')
+    # outfile = '/Users/nasrallah/Desktop/Insight/courtcast/db/database_table.txt'
+    # dXWU.to_csv(outfile, sep='\t')
 
 
 

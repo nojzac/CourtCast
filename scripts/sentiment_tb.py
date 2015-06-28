@@ -2,6 +2,16 @@
 
 from __future__ import print_function
 
+###!!! Fixing error 'ascii' codec can't decode byte...
+import sys
+reload(sys)
+sys.setdefaultencoding('Cp1252')
+###!!! End fixing codec
+
+###!!! Setting directory for questions
+dir_data_questions = "data/c040_questions/"
+###!!!
+
 def clean_string(text):
     ''' Takes a string, lowercase, tokenizes, lematizes, and removes stopwords, and returns a single string again '''
     from nltk import stem
@@ -43,14 +53,14 @@ def read_q(filename):
 
 
 ## get the feature table 
-feature_table_file = '/Users/nasrallah/Desktop/Insight/courtcast/db/feature_table.txt'
+feature_table_file = 'data/c030_transcripts/feature_table.txt'
 import pandas as pd
 feature_table = pd.read_csv(feature_table_file, sep='\t', index_col=0)    
  
 
 
 X = []
-q_dir = '/Users/nasrallah/Desktop/Insight/courtcast/db/questions/'
+q_dir = dir_data_questions
 import os
 for file in os.listdir(q_dir):
     thisJ_qlist, docks = read_q(q_dir + file)
@@ -77,6 +87,6 @@ Sd.sort(axis=1, inplace=True)
 feature_table = feature_table.join(Sd,how='inner')
 
 
-outfile = '/Users/nasrallah/Desktop/Insight/courtcast/db/feature_table_2.txt'
+outfile = 'data/c050_sentiment/feature_table_2.txt'
 feature_table.to_csv(outfile, sep='\t')
 

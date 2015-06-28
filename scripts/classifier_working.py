@@ -24,28 +24,28 @@ def auc_shuffle(y, pred_y, ntimes):
 
 
 ####### Plot some AUC permutations
-a = pd.Series(auc_shuffle(y, svm_pred_self, 1000))
-a.hist()
-plt.axis([0.25, 0.75, 0, 300])
-#plt.axvline(0.683897166585, color='k', linewidth=1.0)            
-plt.arrow( 0.684, 50.0, 0.0, -30, fc="k", ec="k", head_width=0.02, head_length=20 )
+# a = pd.Series(auc_shuffle(y, svm_pred_self, 1000))
+# a.hist()
+# plt.axis([0.25, 0.75, 0, 300])
+# #plt.axvline(0.683897166585, color='k', linewidth=1.0)            
+# plt.arrow( 0.684, 50.0, 0.0, -30, fc="k", ec="k", head_width=0.02, head_length=20 )
 
-b = pd.Series(auc_shuffle(z, svm_pred, 5000))
-b.hist()
-plt.axis([0.25, 0.75, 0, 1500])
-#plt.axvline(0.0.696117804552, color='k', linewidth=1.0)            
-plt.arrow( 0.696, 100.0, 0.0, -50, fc="k", ec="k", head_width=0.015, head_length=50 )
-plt.title('AUC permutation test')
-plt.ylabel('count', fontsize=14, labelpad=10)
-plt.xlabel('AUC', fontsize=14, labelpad=10)
-plt.tight_layout()
+# b = pd.Series(auc_shuffle(z, svm_pred, 5000))
+# b.hist()
+# plt.axis([0.25, 0.75, 0, 1500])
+# #plt.axvline(0.0.696117804552, color='k', linewidth=1.0)            
+# plt.arrow( 0.696, 100.0, 0.0, -50, fc="k", ec="k", head_width=0.015, head_length=50 )
+# plt.title('AUC permutation test')
+# plt.ylabel('count', fontsize=14, labelpad=10)
+# plt.xlabel('AUC', fontsize=14, labelpad=10)
+# plt.tight_layout()
 ########
 
 
 
 def main():
 
-    infile = '/Users/nasrallah/Desktop/Insight/courtcast/db/feature_table_2.txt'
+    infile = 'data/c050_sentiment/feature_table_2.txt'
 
     ## Kennedy's words carry low weight among the justices, indicating that perhaps his speech is the least predictive of the outcome. Doesn't reveal much. That is IF the order is preserved...
     feature_names = ['amicus', 'argYear', 'argMonth', 'cutoffs_ALL', 'cutoffs_BREYER', 'cutoffs_GINSBURG', 'cutoffs_KENNEDY', 'cutoffs_ROBERTS', 'cutoffs_SCALIA', 'words_BREYER', 'words_GINSBURG', 'words_KENNEDY', 'words_ROBERTS', 'words_SCALIA', 'sentiment_BREYER', 'sentiment_GINSBURG', 'sentiment_KENNEDY', 'sentiment_ROBERTS', 'sentiment_SCALIA']
@@ -68,10 +68,14 @@ def main():
     y = dX.winner
     z = dW.winner
     
+    y = y.fillna(0)
+
     ## Extract only the features for each dataset
     X = dX[feature_names]
     W = dW[feature_names]
     U = dU[feature_names]
+    
+    X = X.fillna(0)
     
     ## store the indices for recombining later????
     X_i = X.index
@@ -249,7 +253,7 @@ def main():
     dXWU.fillna('?', inplace=True)
  
     ## Save the case info, features, SVM predictions and probabilities to file      
-    outfile = '/Users/nasrallah/Desktop/Insight/courtcast/db/database_table.txt'
+    # outfile = '/Users/nasrallah/Desktop/Insight/courtcast/db/database_table.txt'
 #    dXWU.to_csv(outfile, sep='\t')
     
     

@@ -25,7 +25,14 @@ import os
 import re
 import string
 import sys
+import csv
 
+###!!!
+dir_data_scdb = "data/c005_scdb/"
+dir_data_origin = "data/c020_cleaned_txt/"
+dir_data_target = "data/c030_transcripts/"
+dir_data_questions = "data/c040_questions/"
+###!!!
     
 def count_words(s):
 	s = s.split()
@@ -39,11 +46,10 @@ def was_cut_off(w):
 
 def get_year_and_month(datestring):
     if datestring != 'NA':
-        argYear, argMonth, argDay = datestring.split('-')
+        argMonth, argDay, argYear = datestring.split('/')
         return argYear, argMonth
     else:
         return 'NA', 'NA'
-
 
 def get_SCDB_info(infile):
     ''' Takes as input the Supreme Court Database file and returns 
@@ -52,8 +58,9 @@ def get_SCDB_info(infile):
     ## Create a dictionary to store info
     d = {}
     ## open the file and read the header
-    f = open(infile, 'r')
-    header = f.next().split('\t')
+    f = open(infile, 'rU')
+    reader = csv.reader(f, dialect="excel-tab", delimiter="\t")
+    header = next(reader)
     ## Find index of columns of interest.
     dcol = header.index('docket')
     ncol = header.index('caseName')
@@ -78,7 +85,7 @@ def get_SCDB_info(infile):
         if reargDate != 'NA':
             argDate = reargDate
         ## If we still don't have an argument date, just use the decision date
-        if argDate == 'NA':
+        if argDate == 'NA' or argDate == '':
             argDate = decDate
         argYear, argMonth = get_year_and_month(argDate)
 
@@ -253,7 +260,9 @@ def get_petitioners_and_respondents_speakers(text):
         #    print('*'*20,entry)
         ## Extract the lawyer's last name
         name = entry.strip().split(',')[0]
-        if not any(x in name for x in ['ESQ', 'Jr.', 'III']):
+        if name == "":
+            name = "NONAME"
+        elif not any(x in name for x in ['ESQ', 'Jr.', 'III']):
             name = name.split()[-1]
         else:
             #print('!'*30, name, name.split()[-2])
@@ -287,8 +296,8 @@ def get_petitioners_and_respondents_speakers(text):
         elif 'Res' in d:
             pass
         else:
-            print('well, shit.')
-            print(d.values())
+            print('Either Pet or Res was not found in this file')
+            # print(d.values())
         ## Find out if it is the petitioner or respondent that is not represented
         unrepresented = 'Pet'
         if 'Res' not in d.values():
@@ -328,8 +337,15 @@ def get_argument_portion(text):
     if start == -1:
         start = 0
     end = text.rfind('Whereupon')
+
+    ###!!!
     if end == -1:
-        end = (re.search(r'[Cc]ase\sis\s[now\s]*submitted', text)).start()
+        if (re.search(r'[Cc]ase\sis\s[now\s]*submitted', text)) != None:
+            end = (re.search(r'[Cc]ase\sis\s[now\s]*submitted', text)).start()
+        elif (re.search(r'[Cc]ase\s[\s]is\s[now\s]*submitted', text)) != None:
+            end = (re.search(r'[Cc]ase\s[\s]is\s[now\s]*submitted', text))
+    ###!!!
+    
     if any(x == -1 for x in [start,end]):
         print('\n*** There was a problem finding the oral argument section')
         print(start,end)
@@ -418,6 +434,8 @@ def count_cutoffs_and_words(text, sides):
             word_count += count_words(line)
             cur_phrase += ' ' + line
         ## store the last word of this line. If the next line is a new speaker, we will use it to see if this speaker was interrupted.
+        if line == "":
+            line = "no information"
         prev_line_last_word = line.split()[-1]
         #print(prev_line_last_word)
         
@@ -438,17 +456,17 @@ def purge_dir(dir):
     for file in os.listdir(dir):
     	os.remove(os.path.join(dir, file))
 
-
+#################################################################
 def main():
 
     ## Define the years we want to analyze
     first_year = '2005'
     last_year = '2015'
     
-    outfile_id = ''
+    outfile_id = 'feature_table.txt'
 
     ## Get the main directory in which each years' cases are stored
-    main_path = '/Users/nasrallah/Desktop/Insight/courtcast/data/transcripts/'  
+    input_path = 'data/c020_cleaned_txt/'  
     
     ## Define a container for the combination of most-interrupted and most-lawyers
     factors = {}
@@ -456,149 +474,155 @@ def main():
     case_features = {}
     ## Define a dictionary for the speech for each case. Key is docket. Value is dictionary of {speaker:{side:speech}}
     all_speech = {}
-    scdb_file = '/Users/nasrallah/Desktop/Insight/courtcast/data/SCDB/SCDB_2014_01_justiceCentered_Citation_tab.txt'
+    scdb_file = 'data/c005_scdb/SCDB_2014_01_justiceCentered_Citation.txt'
     case_info = get_SCDB_info(scdb_file)
-    new_case_file = '/Users/nasrallah/Desktop/Insight/courtcast/data/new_cases.txt'
-    case_info = append_new_case_info(new_case_file, case_info)
+    # new_case_file = '/data/new_cases.txt'
+    # case_info = append_new_case_info(new_case_file, case_info)
     winner_dict = get_docket_winners(case_info)
-
     
     ## Analyze the transcripts for all cases in each year    
-    years = map(str, range(int(first_year),int(last_year)+1))
-    for year in years:
-        this_path = main_path + year + '/'
-        files = [ os.path.join(this_path,x) for x in os.listdir(this_path) if 'mod.txt' in x ]
-        ## for each file:
-        for file in files:
-            ## Get the argument text
-            #print(file)   
-            ## Read in the whole file as string to search a few things
-            with open(file, 'rU') as f:
-                text = f.read()
-            
-            ## Change all pesky 'McGREGOR' 'McCONNELL and DiNARDO to all caps
-            text = re.sub(r'[DM][aci]c*[A-Z]+', lambda pat: pat.group().upper(), text)
+    for file in os.listdir(dir_data_origin):
+        ## Get the argument text
+        #print(file)   
+        ## Read in the whole file as string to search a few things
+        with open(dir_data_origin + file, 'rU') as f:
+            text = f.read()
+        
+        ## Change all pesky 'McGREGOR' 'McCONNELL and DiNARDO to all caps
+        text = re.sub(r'[DM][aci]c*[A-Z]+', lambda pat: pat.group().upper(), text)
 #            test = re.sub(r'M R', r'MR', text)
-            
-            ## Find the docket number from the text file to look up the votes in the SCDB using the 'docket' column
-            docket = find_docket_number(text)
-            #print('\ndocket:',docket)
-            if docket in case_features:
-                print(docket,'appears multiple times')
-                #continue   ## The second one encountered is likely a re-argument, and is probably the more useful one to examine, so let's replace the first one.
-            
-            ## Ensure the case is found in the SCDB. If not, skip it.
-            if docket not in winner_dict:
-                print(docket, 'not found in winner_dict', '*'*30)
-                continue
-                        
-            ## Get from the text which lawyer supported which side (petitioner/respondent)
-            sides = get_petitioners_and_respondents_speakers(text)
-            #for x in sides: print(x, sides[x])
+        
+        ## Find the docket number from the text file to look up the votes in the SCDB using the 'docket' column
+        docket = find_docket_number(text)
+        #print('\ndocket:',docket)
+        if docket in case_features:
+            print(docket,'appears multiple times')
+            #continue   ## The second one encountered is likely a re-argument, and is probably the more useful one to examine, so let's replace the first one.
+        
+        ## Ensure the case is found in the SCDB. If not, skip it.
+        if docket not in winner_dict:
+            print(docket, 'not found in winner_dict', '*'*30)
+            continue
+                    
+        ## Get from the text which lawyer supported which side (petitioner/respondent)
+        sides = get_petitioners_and_respondents_speakers(text)
+        #for x in sides: print(x, sides[x])
 
-            ## Is the winning side the Petitioner or Respondent?
-            winning_side = winner_dict[docket] 
-                             
-            #if winning_side not in ['Pet', 'Res']:
-            #    print('hmm. neither the petitioner nor repondent won?')
-            
+        ## Is the winning side the Petitioner or Respondent?
+        winning_side = winner_dict[docket] 
+                         
+        #if winning_side not in ['Pet', 'Res']:
+        #    print('hmm. neither the petitioner nor repondent won?')
+        
 #             ## Convert petitioner/respondent into winner/loser for this case.
 #             outcomes = get_winning_lawyers(sides, winning_side)
-             
-            ## Analyze the oral argument text for the number of cutoffs and the sentence length distributions
-            cutoffs, ind_phrases, words, justice_questions = count_cutoffs_and_words(text, sides)
-            
-            ## Print some stuff about this case
-            #print('\ndocket:',docket)
-            #for x in sides: print(x, sides[x], cutoffs[x]) 
-            #for x in outcomes: print(x, outcomes[x]) 
-            #for c in cutoffs: print('\t', c, cutoffs[c])
-            #for w in ind_phrases: print(w, sum(ind_phrases[w]))
-            #for w in words: print(w, words[w])
-            #for j in justice_questions:
-            #    for s in ['Pet','Res']:
-            #        #print(j, s, justice_questions[j][s])
-            #        print(j, s)
-            
-            ## For each speaker, if that speaker is not a lawyer, sum across all lawyers on each side the words spoken to them.
-            words_to_sides = {}                    
-            for j in words:
-                if j not in sides:
-                    words_to_sides[j] = {'Pet':0.0,'Res':0.0}
-                    for lawyer in sides:
-                        if lawyer in words[j]:
-                            if sides[lawyer] in ['Pet','Res']:
-                                words_to_sides[j][sides[lawyer]] += words[j][lawyer]
-            ## Convert to a DataFrame and calculate normalized word score
-            words_to_sides = pd.DataFrame.from_dict(words_to_sides, orient='index')
-            words_to_sides['score'] = (words_to_sides.Res - words_to_sides.Pet) / (words_to_sides.Res + words_to_sides.Pet)
-            words_to_sides.replace(to_replace=float('inf'),value=0.0, inplace=True)
-            words_to_sides.replace(to_replace=float('nan'),value=0.0, inplace=True)
-            #print(words_to_sides)
+         
+        ## Analyze the oral argument text for the number of cutoffs and the sentence length distributions
+        cutoffs, ind_phrases, words, justice_questions = count_cutoffs_and_words(text, sides)
+        
+        ## Print some stuff about this case
+        #print('\ndocket:',docket)
+        #for x in sides: print(x, sides[x], cutoffs[x]) 
+        #for x in outcomes: print(x, outcomes[x]) 
+        #for c in cutoffs: print('\t', c, cutoffs[c])
+        #for w in ind_phrases: print(w, sum(ind_phrases[w]))
+        #for w in words: print(w, words[w])
+        #for j in justice_questions:
+        #    for s in ['Pet','Res']:
+        #        #print(j, s, justice_questions[j][s])
+        #        print(j, s)
+        
+        ## For each speaker, if that speaker is not a lawyer, sum across all lawyers on each side the words spoken to them.
+        words_to_sides = {}                    
+        for j in words:
+            if j not in sides:
+                words_to_sides[j] = {'Pet':0.0,'Res':0.0}
+                for lawyer in sides:
+                    if lawyer in words[j]:
+                        if sides[lawyer] in ['Pet','Res']:
+                            words_to_sides[j][sides[lawyer]] += words[j][lawyer]
+        ## Convert to a DataFrame and calculate normalized word score
+        words_to_sides = pd.DataFrame.from_dict(words_to_sides, orient='index')
+        words_to_sides['score'] = (words_to_sides.Res - words_to_sides.Pet) / (words_to_sides.Res + words_to_sides.Pet)
+        words_to_sides.replace(to_replace=float('inf'),value=0.0, inplace=True)
+        words_to_sides.replace(to_replace=float('nan'),value=0.0, inplace=True)
+        #print(words_to_sides)
 
-            cutoffs_to_sides = {}                    
-            for lawyer in cutoffs:
-                if lawyer in sides:
-                    this_side = sides[lawyer]
-                    if this_side in ['Pet','Res']:
-                        if this_side not in cutoffs_to_sides:
-                            cutoffs_to_sides[this_side] = {}
-                        for justice in cutoffs[lawyer]:
-                            if justice not in cutoffs_to_sides[this_side]:
-                                cutoffs_to_sides[this_side][justice] = 0.0
+        cutoffs_to_sides = {}                    
+        for lawyer in cutoffs:
+            if lawyer in sides:
+                this_side = sides[lawyer]
+                if this_side in ['Pet','Res']:
+                    if this_side not in cutoffs_to_sides:
+                        cutoffs_to_sides[this_side] = {}
+                    for justice in cutoffs[lawyer]:
+                        if justice not in cutoffs_to_sides[this_side]:
+                            cutoffs_to_sides[this_side][justice] = 0.0
+                        ###!!!
+                        if justice in cutoffs[lawyer].keys():
                             cutoffs_to_sides[this_side][justice] += cutoffs[lawyer][justice]
-            ## Convert to a DataFrame and calculate normalized word score
-            cutoffs_to_sides = pd.DataFrame.from_dict(cutoffs_to_sides, orient='columns')
-            cutoffs_to_sides.replace(to_replace=float('NaN'),value=0.0, inplace=True)       
-            cutoffs_to_sides['score'] = (cutoffs_to_sides.Res - cutoffs_to_sides.Pet) / (cutoffs_to_sides.Res + cutoffs_to_sides.Pet)
-            cutoffs_to_sides.replace(to_replace=float('inf'),value=0.0, inplace=True)
-            #print(cutoffs_to_sides)
-                        
-            ## Get total interruptions of either side
-            side_cuts = cutoffs_to_sides[['Pet','Res']].apply(sum, axis=0)
-            #print(side_cuts)
+                        ###!!!
 
-            ## Get the difference in cutoffs between the two sides. Also a binary indicating which side was most interrupted.
-            side_cuts_diff = side_cuts.Res - side_cuts.Pet
-            int_side = 1 if side_cuts_diff < 0 else 0
-            
-            #print('winner:', winning_side)
-            #### Assumes there is a singular maximum. 08-205 reargued was a tie. 
-            
-            ## If the the most interrupted person is on the losing side, call that right. Else wrong.
-            #print(docket, cutoffs)
+        ###!!! Use to resolve error that Dataframe object has no attribute 'Res' and/or 'Pet'
+        if "Res" not in cutoffs_to_sides.keys():
+            cutoffs_to_sides["Res"] = {'QUESTION': 0.0}
+        if "Pet" not in cutoffs_to_sides.keys():
+            cutoffs_to_sides["Pet"] = {'QUESTION': 0.0}
+        print("*********** " + file + " *************")
+        ###!!!
+
+        ## Convert to a DataFrame and calculate normalized word score
+        cutoffs_to_sides = pd.DataFrame.from_dict(cutoffs_to_sides, orient='columns')
+        cutoffs_to_sides.replace(to_replace=float('NaN'),value=0.0, inplace=True)       
+        cutoffs_to_sides['score'] = (cutoffs_to_sides.Res - cutoffs_to_sides.Pet) / (cutoffs_to_sides.Res + cutoffs_to_sides.Pet)
+        cutoffs_to_sides.replace(to_replace=float('inf'),value=0.0, inplace=True)
+        #print(cutoffs_to_sides)
+                    
+        ## Get total interruptions of either side
+        side_cuts = cutoffs_to_sides[['Pet','Res']].apply(sum, axis=0)
+        #print(side_cuts)
+
+        ## Get the difference in cutoffs between the two sides. Also a binary indicating which side was most interrupted.
+        side_cuts_diff = side_cuts.Res - side_cuts.Pet
+        int_side = 1 if side_cuts_diff < 0 else 0
+        
+        #print('winner:', winning_side)
+        #### Assumes there is a singular maximum. 08-205 reargued was a tie. 
+        
+        ## If the the most interrupted person is on the losing side, call that right. Else wrong.
+        #print(docket, cutoffs)
 #             most_interrupted = max(cutoffs.iteritems(), key=operator.itemgetter(1))[0]
 #             #print('most interrupted:', most_interrupted)
 #             if most_interrupted not in outcomes:
 #                 print(docket, 'most_interrupted', most_interrupted, outcomes[most_interrupted])       
 
-            ## See if there were more lawyers on winning/losing side
-            num_pet = sides.values().count('Pet')
-            num_res = sides.values().count('Res')
-            ## Create variable -1/0/1 for Pet/None/Res.  
-            amicus_side = 1 if num_pet > num_res else -1 if num_pet < num_res else 0
+        ## See if there were more lawyers on winning/losing side
+        num_pet = sides.values().count('Pet')
+        num_res = sides.values().count('Res')
+        ## Create variable -1/0/1 for Pet/None/Res.  
+        amicus_side = 1 if num_pet > num_res else -1 if num_pet < num_res else 0
 
 
-            
-            if docket not in case_features:
-                case_features[docket] = {}
-                case_features[docket]['amicus'] = amicus_side 
-                case_features[docket]['cutoffs_ALL'] = side_cuts_diff
-                ## convert winning_side into 0/1
-                if winning_side == 'Pet':
-                    win = 1
-                elif winning_side == 'Res':
-                    win = 0
-                else:
-                    win = 'NaN'
-                case_features[docket]['winner'] = win
-                #for j in words_to_sides.index.values:
-                for j in ['JUSTICE BREYER', 'JUSTICE GINSBURG', 'JUSTICE KENNEDY', 'CHIEF JUSTICE ROBERTS', 'JUSTICE SCALIA']:
-                    case_features[docket]['words_%s' % j.split()[-1]] = words_to_sides.score[j] if j in words_to_sides.index.values else 0
-                    case_features[docket]['cutoffs_%s' % j.split()[-1]] = cutoffs_to_sides.score[j] if j in cutoffs_to_sides.index.values else 0
-            ## Add the dictionary of speech to the 
-            if docket not in all_speech:
-                all_speech[docket] = dict.copy(justice_questions)
+        
+        if docket not in case_features:
+            case_features[docket] = {}
+            case_features[docket]['amicus'] = amicus_side 
+            case_features[docket]['cutoffs_ALL'] = side_cuts_diff
+            ## convert winning_side into 0/1
+            if winning_side == 'Pet':
+                win = 1
+            elif winning_side == 'Res':
+                win = 0
+            else:
+                win = 'NaN'
+            case_features[docket]['winner'] = win
+            #for j in words_to_sides.index.values:
+            for j in ['JUSTICE BREYER', 'JUSTICE GINSBURG', 'JUSTICE KENNEDY', 'CHIEF JUSTICE ROBERTS', 'JUSTICE SCALIA']:
+                case_features[docket]['words_%s' % j.split()[-1]] = words_to_sides.score[j] if j in words_to_sides.index.values else 0
+                case_features[docket]['cutoffs_%s' % j.split()[-1]] = cutoffs_to_sides.score[j] if j in cutoffs_to_sides.index.values else 0
+        ## Add the dictionary of speech to the 
+        if docket not in all_speech:
+            all_speech[docket] = dict.copy(justice_questions)
 
 
     ## Convert the case_features into a DataFrame and join with the info from SCDB
@@ -609,12 +633,12 @@ def main():
     case_features.sort(axis=1, inplace=True)
     #print(case_features)
  
-
-    feature_outfile = '/Users/nasrallah/Desktop/Insight/courtcast/db/feature_table' + outfile_id + '.txt'
+    ### Saving out files
+    feature_outfile = dir_data_target + outfile_id
     case_features.to_csv(feature_outfile, sep='\t')
 
     ## directory to write question files
-    q_dir = '/Users/nasrallah/Desktop/Insight/courtcast/db/questions/'
+    q_dir = dir_data_questions
     ## Purge the directory of question files from previous runs
     purge_dir(q_dir)
     
@@ -631,7 +655,6 @@ def main():
                         f.write(docket + ' +++$+++ ' + all_speech[docket][j][s] + '\n')            
                     else:
                         f.write(docket + ' +++$+++ ' + ' ' + '\n')
-
 
 if __name__ == '__main__':
     main()
